@@ -1,16 +1,5 @@
 
-fn viewshed_of_slice(elevation_angle_slice: &[f32]) -> Vec<i8> {
-    
-    let mut max_angle = f32::NEG_INFINITY;
-    let mut viewshed = vec![0; elevation_angle_slice.len()];
-    for (idx, angle) in elevation_angle_slice.iter().enumerate() {
-        if angle >= &max_angle {
-            viewshed[idx] = 1;
-            max_angle = *angle;
-        }
-    }
-    viewshed
-}
+
 
 fn main() {
     println!("Calculating the viewshed!");
@@ -34,14 +23,25 @@ fn main() {
         elevation_angle[idx] = theta;
     }
 
-    viewshed[viewpoint.0..].copy_from_slice(&viewshed_of_slice(&elevation_angle[viewpoint.0..]));
-    
-    let mut elevation_angle_slice: Vec<f32> = Vec::new();
-    elevation_angle_slice.extend_from_slice(&elevation_angle[..viewpoint.0]);
-    elevation_angle_slice.reverse();
-    let mut slice_viewshed = viewshed_of_slice(&elevation_angle_slice);
-    slice_viewshed.reverse();
-    viewshed[..viewpoint.0].copy_from_slice(&slice_viewshed);
+    // Determine visibility to the right from viewpoint
+    let mut max_angle = f32::NEG_INFINITY;
+    for idx in viewpoint.0..elevation_angle.len() {
+        let angle = elevation_angle[idx];
+        if angle >= max_angle {
+            viewshed[idx] = 1;
+            max_angle = angle;
+        }
+    }
+
+    // Determine visibility to the left from viewpoint
+    let mut max_angle = f32::NEG_INFINITY;
+    for idx in (0..viewpoint.0).rev() {
+        let angle = elevation_angle[idx];
+        if angle >= max_angle {
+            viewshed[idx] = 1;
+            max_angle = angle;
+        }
+    }
 
     println!("Terrain: {:?}", terrain);
     println!("Viewshed: {:?}", viewshed);

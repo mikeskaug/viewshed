@@ -1,21 +1,52 @@
+extern crate ndarray;
 
+use ndarray::{array, Array};
 
-use crate::algorithms::viewshed_1d;
+use crate::algorithms::viewshed_2d;
 
 fn main() {
     println!("Calculating the viewshed!");
 
     // terrain and viewpoint will eventually be user suplied
-    let terrain = vec![1., 2., 3., 5., 7., 6., 5., 5., 8., 20., 32., 7., 5.];
-    let viewpoint = (6 as usize,);
+    // let terrain = vec![1., 2., 3., 5., 7., 6., 5., 5., 8., 20., 32., 7., 5.];
+    // let viewpoint = (6 as usize,);
 
-    let viewshed = viewshed_1d(&terrain, viewpoint);
+    // let viewshed = viewshed_1d(&terrain, viewpoint);
+
+    let terrain: Array<f64, _> = array![[1., 2., 3., 5., 7.], [6., 5., 5., 8., 20.], [32., 7., 5., 3., 10.]];
+    let viewpoint = (2 as usize, 2 as usize);
+
+    let viewshed = viewshed_2d(&terrain, viewpoint);
 
     println!("Terrain: {:?}", terrain);
     println!("Viewshed: {:?}", viewshed);
 }
 
 mod algorithms {
+    use ndarray::{Array, Array2};
+
+    pub fn viewshed_2d(terrain: &Array2<f64>, viewpoint: (usize,usize)) -> Array2<u8> {
+        let viewpoint_h = &terrain[[viewpoint.0, viewpoint.1]];
+
+        let mut elevation_angle = Array::<f64, _>::zeros(terrain.dim());
+        let mut viewshed = Array::<u8, _>::zeros(terrain.dim());
+
+        // calculate the elevation angle for each point in the terrain
+        for ((idx, idy), terrain_height) in terrain.indexed_iter() {
+            if (idx, idy) == viewpoint {
+                elevation_angle[[idx, idy]] = 0.0;
+                continue;
+            }
+            let del_h = terrain_height - viewpoint_h;
+            let del_d = ((idx as f64) - (viewpoint.0 as f64)).abs();
+            let theta = (del_h / del_d).atan();
+            elevation_angle[[idx, idy]] = theta;
+        }
+
+        // Iterate and determine visibility
+        
+        viewshed
+    }
 
     pub fn viewshed_1d(terrain: &Vec<f32>, viewpoint: (usize,)) -> Vec<i32> {
         let viewpoint_h = &terrain[viewpoint.0];

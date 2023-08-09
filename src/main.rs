@@ -1,5 +1,5 @@
-extern crate ndarray;
 
+extern crate ndarray;
 use ndarray::{array, Array};
 
 use crate::algorithms::viewshed_2d;
@@ -14,19 +14,19 @@ fn main() {
     // let viewshed = viewshed_1d(&terrain, viewpoint);
 
     let terrain: Array<f64, _> = array![
-        [1., 2., 3., 5., 7.], 
+        [1., 2., 10., 5., 7.], 
         [6., 5., 5., 8., 20.], 
-        [32., 7., 5., 3., 10.],
-        [32., 7., 5., 3., 10.],
-        [1., 1., 7., 7., 1.]
+        [2., 7., 5., 3., 10.],
+        [2., 7., 5., 5., 10.],
+        [10., 1., 7., 7., 1.]
     ];
-    let viewpoint = (2 as usize, 2 as usize);
+    let viewpoint = (2 as usize, 1 as usize);
 
     let viewshed = viewshed_2d(&terrain, viewpoint);
 
-    println!("Terrain: {:?}", terrain);
+    println!("Terrain: \n{:?}", terrain);
     println!("Viewpoint: {:?}", viewpoint);
-    println!("Viewshed: {:?}", viewshed);
+    println!("Viewshed: \n{:?}", viewshed);
 }
 
 mod transforms {
@@ -42,6 +42,7 @@ mod transforms {
     }
 }
 mod algorithms {
+    use std::env;
     use ndarray::{Array, Array2, Zip};
     use crate::transforms::{to_origin, to_viewpoint};
 
@@ -63,7 +64,7 @@ mod algorithms {
             elevation_angle[[idx, idy]] = theta;
         }
 
-        // traverse down the right edge of the terrain
+        // traverse down the RIGHT EDGE of the terrain
         // for each edge cell, find the ray from the viewpoint to the edge cell
         // traverse the ray and determine visibility based on max angle
         for idy in 0..elevation_angle.shape()[1] {
@@ -74,16 +75,115 @@ mod algorithms {
             let ray_idxs = Array::range(1.0, (idx as f64) + 1.0, 1.0);
             let ray_idys = &ray_idxs * f64::tan(viewpoint_to_edge_angle);
             
-            println!("idx: {}, idy: {}", idx, idy);
-            println!("viewpoint_to_edge_angle: {}", viewpoint_to_edge_angle);
-            println!("ray_idxs: {:?}", ray_idxs);
-            println!("ray_idys: {:?}", ray_idys);
+            let debug = env::var("DEBUG").is_ok();
+            if debug {
+                println!("idx: {}, idy: {}", idx, idy);
+                println!("viewpoint_to_edge_angle: {}", viewpoint_to_edge_angle);
+                println!("ray_idxs: {:?}", ray_idxs);
+                println!("ray_idys: {:?}", ray_idys);
+            }
             
             let mut max_angle = f64::NEG_INFINITY;
             Zip::from(&ray_idxs)
                 .and(&ray_idys)
                 .for_each(|&ray_idx, &ray_idy| {
-                    let (ray_idx, ray_idy) = to_origin(((ray_idx as usize).try_into().unwrap(), (ray_idy as usize).try_into().unwrap()), viewpoint);
+                    let (ray_idx, ray_idy) = to_origin(((ray_idx.round() as isize).try_into().unwrap(), (ray_idy.round() as isize).try_into().unwrap()), viewpoint);
+                    let angle = elevation_angle[[ray_idx, ray_idy]];
+                    if angle >= max_angle {
+                        viewshed[[ray_idx, ray_idy]] = 1;
+                        max_angle = angle;
+                    }
+                });
+        }
+
+        // traverse across the TOP of the terrain
+        // for each edge cell, find the ray from the viewpoint to the edge cell
+        // traverse the ray and determine visibility based on max angle
+        for idx in 0..elevation_angle.shape()[0] {
+            let (idx, idy) = to_viewpoint((idx, elevation_angle.shape()[1]-1), viewpoint);
+            let del_y = idy as f64; //del_y = idy because we shifted origin to the viewpoint
+            let del_x = idx as f64;
+            let viewpoint_to_edge_angle = del_y.atan2(del_x);
+            let ray_idys = Array::range(1.0, (idy as f64) + 1.0, 1.0);
+            let ray_idxs = &ray_idys / f64::tan(viewpoint_to_edge_angle);
+            
+            let debug = env::var("DEBUG").is_ok();
+            if debug {
+                println!("idx: {}, idy: {}", idx, idy);
+                println!("viewpoint_to_edge_angle: {}", viewpoint_to_edge_angle);
+                println!("ray_idxs: {:?}", ray_idxs);
+                println!("ray_idys: {:?}", ray_idys);
+            }
+            
+            let mut max_angle = f64::NEG_INFINITY;
+            Zip::from(&ray_idxs)
+                .and(&ray_idys)
+                .for_each(|&ray_idx, &ray_idy| {
+                    let (ray_idx, ray_idy) = to_origin(((ray_idx.round() as isize).try_into().unwrap(), (ray_idy.round() as isize).try_into().unwrap()), viewpoint);
+                    let angle = elevation_angle[[ray_idx, ray_idy]];
+                    if angle >= max_angle {
+                        viewshed[[ray_idx, ray_idy]] = 1;
+                        max_angle = angle;
+                    }
+                });
+        }
+
+        // traverse down the LEFT EDGE of the terrain
+        // for each edge cell, find the ray from the viewpoint to the edge cell
+        // traverse the ray and determine visibility based on max angle
+        for idy in 0..elevation_angle.shape()[1] {
+            let (idx, idy) = to_viewpoint((0, idy), viewpoint);
+            let del_y = idy as f64; //del_y = idy because we shifted origin to the viewpoint
+            let del_x = idx as f64;
+            let viewpoint_to_edge_angle = del_y.atan2(del_x);
+            let ray_idxs = Array::range(-1.0, (idx as f64) - 1.0, -1.0);
+            let ray_idys = &ray_idxs * f64::tan(viewpoint_to_edge_angle);
+            
+            let debug = env::var("DEBUG").is_ok();
+            if debug {
+                println!("idx: {}, idy: {}", idx, idy);
+                println!("viewpoint_to_edge_angle: {}", viewpoint_to_edge_angle);
+                println!("ray_idxs: {:?}", ray_idxs);
+                println!("ray_idys: {:?}", ray_idys);
+            }
+            
+            let mut max_angle = f64::NEG_INFINITY;
+            Zip::from(&ray_idxs)
+                .and(&ray_idys)
+                .for_each(|&ray_idx, &ray_idy| {
+                    let (ray_idx, ray_idy) = to_origin(((ray_idx.round() as isize).try_into().unwrap(), (ray_idy.round() as isize).try_into().unwrap()), viewpoint);
+                    let angle = elevation_angle[[ray_idx, ray_idy]];
+                    if angle >= max_angle {
+                        viewshed[[ray_idx, ray_idy]] = 1;
+                        max_angle = angle;
+                    }
+                });
+        }
+
+        // traverse across the BOTTOM of the terrain
+        // for each edge cell, find the ray from the viewpoint to the edge cell
+        // traverse the ray and determine visibility based on max angle
+        for idx in 0..elevation_angle.shape()[0] {
+            let (idx, idy) = to_viewpoint((idx, 0), viewpoint);
+            let del_y = idy as f64; //del_y = idy because we shifted origin to the viewpoint
+            let del_x = idx as f64;
+            let viewpoint_to_edge_angle = del_y.atan2(del_x);
+            let ray_idys = Array::range(-1.0, (idy as f64) - 1.0, -1.0);
+            let ray_idxs = &ray_idys / f64::tan(viewpoint_to_edge_angle);
+            
+            let debug = env::var("DEBUG").is_ok();
+            if debug {
+                println!("idx: {}, idy: {}", idx, idy);
+                println!("viewpoint_to_edge_angle: {}", viewpoint_to_edge_angle);
+                println!("ray_idxs: {:?}", ray_idxs);
+                println!("ray_idys: {:?}", ray_idys);
+            }
+            
+            let mut max_angle = f64::NEG_INFINITY;
+            Zip::from(&ray_idxs)
+                .and(&ray_idys)
+                .for_each(|&ray_idx, &ray_idy| {
+                    let (ray_idx, ray_idy) = to_origin(((ray_idx.round() as isize).try_into().unwrap(), (ray_idy.round() as isize).try_into().unwrap()), viewpoint);
                     let angle = elevation_angle[[ray_idx, ray_idy]];
                     if angle >= max_angle {
                         viewshed[[ray_idx, ray_idy]] = 1;

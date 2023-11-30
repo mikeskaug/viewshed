@@ -1,32 +1,51 @@
+use std::env;
 
 extern crate ndarray;
-use ndarray::{array, Array};
 
 use crate::algorithms::viewshed_2d;
+use crate::io::load_terrain;
 
 fn main() {
     println!("Calculating the viewshed!");
 
-    // terrain and viewpoint will eventually be user suplied
-    // let terrain = vec![1., 2., 3., 5., 7., 6., 5., 5., 8., 20., 32., 7., 5.];
-    // let viewpoint = (6 as usize,);
+    let args: Vec<String> = env::args().collect();
+    let terrain_geotiff_filepath = &args[1];
 
-    // let viewshed = viewshed_1d(&terrain, viewpoint);
+    let load_result = load_terrain(&terrain_geotiff_filepath);
+    let (terrain, geo_transform) = match load_result {
+        Ok((terrain, geo_transform)) => (terrain, geo_transform),
+        Err(e) => panic!("There was a problem loading terrain from file: {:?}", e),
+    };
 
-    let terrain: Array<f64, _> = array![
-        [1., 2., 10., 5., 7.], 
-        [6., 5., 5., 8., 20.], 
-        [2., 7., 5., 3., 10.],
-        [2., 7., 5., 5., 10.],
-        [10., 1., 7., 7., 1.]
-    ];
-    let viewpoint = (2 as usize, 1 as usize);
+    let viewpoint = (100 as usize, 100 as usize);
 
     let viewshed = viewshed_2d(&terrain, viewpoint);
 
     println!("Terrain: \n{:?}", terrain);
     println!("Viewpoint: {:?}", viewpoint);
     println!("Viewshed: \n{:?}", viewshed);
+}
+
+mod io {    
+    use gdal::{Dataset, GeoTransform};
+    use gdal::errors::GdalError;
+    use gdal::raster::ResampleAlg::NearestNeighbour;
+    use ndarray::Array2;
+
+    pub fn load_terrain(filename: &str) -> Result<(Array2<f64>, GeoTransform), GdalError> {
+        println!("Loading terrain file: {:?}", filename );
+        
+        let ds = Dataset::open(filename)?;
+        let geo_transform = ds.geo_transform()?;
+        let terrain_raster = ds.rasterband(1)?;
+
+        let (x_size, y_size) = terrain_raster.size();
+        let terrain_array = terrain_raster.read_as_array((0,0), (x_size,y_size), (x_size,y_size), Some(NearestNeighbour))?;
+
+        let terrain_array_f64 = terrain_array.mapv(|x: i16| f64::from(x));
+
+        Ok((terrain_array_f64, geo_transform))
+    }
 }
 
 mod transforms {
@@ -41,6 +60,7 @@ mod transforms {
         transformed
     }
 }
+
 mod algorithms {
     use std::env;
     use ndarray::{Array, Array2, Zip};

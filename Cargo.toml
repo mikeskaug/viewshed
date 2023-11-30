@@ -6,3 +6,4 @@ edition = "2021"
 
 [dependencies]
 ndarray = "0.15.6"
+gdal = { version = "0.15.0", features = ["array"]}
